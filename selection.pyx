@@ -1,4 +1,3 @@
-# cython: profile=True
 import numpy as np
 import sys
 import pylab
@@ -15,7 +14,7 @@ cdef float Cs = 0.2
 cdef float death_rate = 0.1
 cdef float size_advantage = 1.25
 cdef unsigned int pop_size = 1000
-cdef unsigned int max_generations = 120
+cdef unsigned int max_generations = 100
 cdef unsigned int large_group_size = 40
 cdef unsigned int small_group_size = 4
 cdef unsigned int group_time = 4
@@ -66,7 +65,7 @@ cdef np.ndarray[DTYPE_f] reproduce(np.ndarray[DTYPE_f] target, float resource):
     return result
 
 
-
+@cython.boundscheck(False)
 cdef float resource_share(np.ndarray[DTYPE_f] target, np.ndarray[DTYPE_f, ndim=2] others, float R):
     """ Calculate the magnitude of a group's resources
     a particular genotype receives.
@@ -95,7 +94,7 @@ cdef void disperse(groups):
     #print "large:",large, "small:",small
 
 
-
+@cython.boundscheck(False)
 def aggregate():
     """ Assign individuals to groups based on
     their group size preference. Index 0 for small groups
@@ -144,6 +143,7 @@ def aggregate():
     return groups
 
 
+@cython.boundscheck(False)
 cdef np.ndarray[DTYPE_f, ndim=2] group_sizes():
     """ Return the relative frequency of each group size
     at this juncture, index 0 is large, 1 is small.
@@ -151,6 +151,7 @@ cdef np.ndarray[DTYPE_f, ndim=2] group_sizes():
     return np.array([[np.sum(large), np.sum(small)]]) / float(pop_size)
 
 
+@cython.boundscheck(False)
 cdef np.ndarray[DTYPE_f, ndim=2] resource_use():
     """ Return the relative frequency of each resource use
     type. Index 0 is cooperative, 1 is selfish.
@@ -158,6 +159,7 @@ cdef np.ndarray[DTYPE_f, ndim=2] resource_use():
     return np.array([[large[0] + small[0], large[1] + small[1]]]) / float(pop_size)
 
 
+@cython.boundscheck(False)
 cdef np.ndarray[DTYPE_f, ndim=2] genotypes():
     """ Return the relative frequency of each genotype.
     0 = cooperative-large
@@ -169,6 +171,7 @@ cdef np.ndarray[DTYPE_f, ndim=2] genotypes():
     return np.array([[large[0], large[1], small[0], small[1]]]) / float(pop_size)
 
 
+@cython.boundscheck(False)
 def rescale():
     """ Rescale the population to pop_size maintaining
     proportions of genotypes.
@@ -182,6 +185,7 @@ def rescale():
     #print "Rescaled to:", np.sum(small) + np.sum(large), "Small:", np.sum(small), "Large:", np.sum(large)
 
 
+@cython.boundscheck(False)
 def init():
     """ Initialise the migrant pool with a population
     of pop_size random individuals.
@@ -191,7 +195,53 @@ def init():
     large = np.ones(2) * pop_size / 4
 
 
-def run():
+@cython.boundscheck(False)
+def coop_fix():
+    """ Test whether cooperative trait has reached fixation
+    in the population. """
+    return resource_use()[0][1] == 0
+
+
+@cython.boundscheck(False)
+def selfish_fix():
+    """ Test whether selfish trait has reached fixation
+    in the population. """
+    return resource_use()[0][0] == 0    
+
+
+@cython.boundscheck(False)
+def run_fig_1():
+    global small_group_size, small, large, group_time
+    cdef int i, t
+    cdef str log
+    dump_file = open("dump.csv", 'w')
+    dump_file.write("Size,Time,Fixated\n")
+    # For group sizes 1 - 8
+    for small_group_size in range(2, 9):
+        # For group times from 1 - 100
+        for group_time in range(1, 101):
+            large = np.zeros(2)
+            small = np.ones(2) * pop_size / 2
+            for i in range(max_generations):
+                groups = aggregate()
+                for t in range(group_time):
+                    groups = reproduce_groups(groups)
+            #print "Reproduce cycle", t
+                disperse(groups)
+                rescale()
+                if coop_fix() or selfish_fix():
+                    break
+                #print resource_use()
+
+            log =  "%d, %d, %s\n" % (small_group_size, group_time, coop_fix())
+            dump_file = open("dump.csv", 'a')
+            dump_file.write(log)
+            dump_file.close()
+            print log
+
+
+@cython.boundscheck(False)
+def run_fig_2():
     """ Run an experiment.
     """
     cdef unsigned int i, t
@@ -222,3 +272,9 @@ def run():
     pylab.plot(range(max_generations), np.rot90(genotype_results)[3], 'y', label="cooperative-large")
     pylab.legend()
     pylab.show()
+
+
+@cython.boundscheck(False)
+def run():
+    run_fig_1()
+    #run_fig_2()
