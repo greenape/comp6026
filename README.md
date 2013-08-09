@@ -1,4 +1,4 @@
-comp6026
+Powers
 ========
 
-Evolution of complexity assignment 2 simulation
+Implementation and extension of a model by Powers
